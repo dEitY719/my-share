@@ -1,0 +1,33 @@
+# 사외(github.com) 개인 프로젝트 허브 대상 목록.
+# build_docs.py 는 name/slug/path 만 사용. url 은 보고서 링크용 메타.
+#   path = 허브 루트 기준 submodule 디렉터리 (repo명과 동일하게 유지)
+#   slug = docs/<slug>/ 수집 폴더명
+products:
+  - name: dotfiles
+    slug: dotfiles
+    path: dotfiles
+    url: https://github.com/dEitY719/dotfiles
+  - name: stock-steward
+    slug: stock-steward
+    path: stock-steward
+    url: https://github.com/dEitY719/stock-steward
+  - name: quantfolio
+    slug: quantfolio
+    path: quantfolio
+    url: https://github.com/dEitY719/quantfolio
+  - name: karakeep
+    slug: karakeep
+    path: karakeep
+    url: https://github.com/dEitY719/karakeep
+  - name: playbook
+    slug: playbook
+    path: playbook
+    url: https://github.com/dEitY719/playbook
+  - name: llm-agent-kit
+    slug: llm-agent-kit
+    path: llm-agent-kit
+    url: https://github.com/dEitY719/llm-agent-kit
+  - name: obsidian-para
+    slug: obsidian-para
+    path: obsidian-para
+    url: https://github.com/dEitY719/obsidian-para

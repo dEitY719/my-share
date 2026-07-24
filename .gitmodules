@@ -1,0 +1,21 @@
+[submodule "quantfolio"]
+	path = quantfolio
+	url = https://github.com/dEitY719/quantfolio
+[submodule "karakeep"]
+	path = karakeep
+	url = https://github.com/dEitY719/karakeep
+[submodule "playbook"]
+	path = playbook
+	url = https://github.com/dEitY719/playbook
+[submodule "llm-agent-kit"]
+	path = llm-agent-kit
+	url = https://github.com/dEitY719/llm-agent-kit
+[submodule "obsidian-para"]
+	path = obsidian-para
+	url = https://github.com/dEitY719/obsidian-para
+[submodule "dotfiles"]
+	path = dotfiles
+	url = https://github.com/dEitY719/dotfiles
+[submodule "stock-steward"]
+	path = stock-steward
+	url = https://github.com/dEitY719/stock-steward

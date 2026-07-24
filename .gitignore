@@ -1,0 +1,9 @@
+# build_docs.py 수집 산출물 (git submodule update + build 로 언제든 재생성)
+docs/
+
+# 보고서 출력 (daily/weekly-report 스킬 산출물)
+reports/
+
+# Python
+__pycache__/
+*.pyc
