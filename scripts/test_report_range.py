@@ -6,7 +6,7 @@
 import tempfile
 from pathlib import Path
 
-from report_range import build_report, entries_in_range
+from report_range import build_report, entries_in_range, fragment_sections, product_sections
 
 CL = """# Changelog
 
@@ -49,7 +49,111 @@ def test_build_report_skips_empty_products():
         assert "(범위 내 변경 없음)" in empty
 
 
+def test_fragment_sections_reads_date_from_filename():
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp) / "changelog.d"
+        d.mkdir()
+        (d / "2026-08-13-1103.md").write_text("- 변경: **A**\n", encoding="utf-8")
+        assert fragment_sections(d) == [("2026-08-13", ["- 변경: **A**"])]
+
+
+def test_product_sections_merges_changelog_md_and_fragments():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "changelog.md").write_text(
+            "# Changelog\n\n## 2026-08-13\n- 변경: **md 쪽**\n", encoding="utf-8"
+        )
+        d = root / "changelog.d"
+        d.mkdir()
+        (d / "2026-08-13-1103.md").write_text("- 변경: **fragment 쪽**\n", encoding="utf-8")
+        assert product_sections(root) == [
+            ("2026-08-13", ["- 변경: **md 쪽**", "- 변경: **fragment 쪽**"])
+        ]
+
+
+def test_build_report_collects_fragment_only_product():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        d = root / "docs" / "a" / "changelog.d"
+        d.mkdir(parents=True)
+        (d / "2026-07-24-1471.md").write_text("- 변경: **fragment 전용**\n", encoding="utf-8")
+        cfg = root / "products.yml"
+        cfg.write_text("products:\n  - {name: A, slug: a, path: a}\n", encoding="utf-8")
+        out = build_report("2026-07-18", "2026-07-24", root / "docs", cfg, "주간")
+        assert "## A" in out
+        assert "### 2026-07-24" in out
+        assert "- 변경: **fragment 전용**" in out
+
+
+def test_fragment_ignores_internal_date_header():
+    """날짜는 파일명이 SSOT — 내부 `## ` 헤더가 새어 들어와도 보고서를 깨지 않는다."""
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp) / "changelog.d"
+        d.mkdir()
+        (d / "2026-08-13-1103.md").write_text(
+            "## 2026-01-01\n- 변경: **본문**\n", encoding="utf-8"
+        )
+        assert fragment_sections(d) == [("2026-08-13", ["- 변경: **본문**"])]
+
+
+def test_same_date_fragments_sort_by_filename_ascending():
+    """같은 날짜 안 순서는 파일명 오름차순 — 생성 순서/파일시스템 순서에 의존하지 않는다."""
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp) / "changelog.d"
+        d.mkdir()
+        # 일부러 내림차순으로 생성한다
+        (d / "2026-08-26-1471.md").write_text("- 변경: **늦은 이슈**\n", encoding="utf-8")
+        (d / "2026-08-26-1460.md").write_text("- 변경: **이른 이슈**\n", encoding="utf-8")
+        assert fragment_sections(d) == [
+            ("2026-08-26", ["- 변경: **이른 이슈**"]),
+            ("2026-08-26", ["- 변경: **늦은 이슈**"]),
+        ]
+        assert product_sections(Path(tmp)) == [
+            ("2026-08-26", ["- 변경: **이른 이슈**", "- 변경: **늦은 이슈**"])
+        ]
+
+
+def test_fragment_dir_ignores_non_conforming_filenames_and_empty_files():
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp) / "changelog.d"
+        d.mkdir()
+        (d / "README.md").write_text("- 변경: **규약 밖**\n", encoding="utf-8")
+        (d / "2026-08-26.md").write_text("- 변경: **이슈번호 없음**\n", encoding="utf-8")
+        (d / "2026-08-26-1471.txt").write_text("- 변경: **md 아님**\n", encoding="utf-8")
+        (d / "2026-08-26-1472.md").write_text("\n\n", encoding="utf-8")
+        (d / "2026-08-26-1473.md").write_text("- 변경: **유일한 유효 항목**\n", encoding="utf-8")
+        assert fragment_sections(d) == [("2026-08-26", ["- 변경: **유일한 유효 항목**"])]
+
+
+def test_changelog_md_only_product_is_unchanged_by_dual_support():
+    """다른 6개 product 회귀 방지 — changelog.md 만 있는 제품 출력이 이전과 동일."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "docs" / "stock-steward").mkdir(parents=True)
+        (root / "docs" / "stock-steward" / "changelog.md").write_text(CL, encoding="utf-8")
+        cfg = root / "products.yml"
+        cfg.write_text(
+            "products:\n  - {name: stock-steward, slug: stock-steward, path: stock-steward}\n",
+            encoding="utf-8",
+        )
+        out = build_report("2026-07-18", "2026-07-24", root / "docs", cfg, "주간")
+        assert out == (
+            "# 주간 — 2026-07-18 ~ 2026-07-24\n"
+            "\n"
+            "## stock-steward\n"
+            "### 2026-07-24\n"
+            "- 변경: **오늘 것**\n"
+        )
+
+
 if __name__ == "__main__":
     test_range_filter()
     test_build_report_skips_empty_products()
+    test_fragment_sections_reads_date_from_filename()
+    test_product_sections_merges_changelog_md_and_fragments()
+    test_build_report_collects_fragment_only_product()
+    test_fragment_ignores_internal_date_header()
+    test_same_date_fragments_sort_by_filename_ascending()
+    test_fragment_dir_ignores_non_conforming_filenames_and_empty_files()
+    test_changelog_md_only_product_is_unchanged_by_dual_support()
     print("OK")

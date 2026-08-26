@@ -1,11 +1,18 @@
-"""docs/<slug>/changelog.md 에서 날짜 범위 [start, end] 항목만 골라 제품별로 모아 출력.
+"""docs/<slug>/ 에서 날짜 범위 [start, end] 항목만 골라 제품별로 모아 출력.
 
 weekly/daily 스킬 공용. 담당자 매핑 없음(개인용). 범위 내 항목 없는 제품은 생략
 (근거 없는 문구 생성 금지 — issue #1219 Error Cases).
 
     python3 scripts/report_range.py --start 2026-07-18 --end 2026-07-24 > out.md
 
-changelog 포맷: `## YYYY-MM-DD` 헤더 아래 `- ...` 항목들.
+두 가지 changelog 소스를 **합집합**으로 읽는다(issue #1, dEitY719/dotfiles#1471):
+
+1. `changelog.md` — 단일 파일. `## YYYY-MM-DD` 헤더 아래 `- ...` 항목들.
+2. `changelog.d/<YYYY-MM-DD>-<issue>.md` — PR 당 fragment 1개. 날짜는 **파일명**이
+   들고 있어 파일 안에는 헤더가 없다(중복 헤더 클래스 원천 차단). 한 줄 = 한 항목.
+
+같은 날짜가 양쪽에 있으면 한 섹션으로 병합하며, 그 안의 순서는
+`changelog.md` 항목 → fragment 항목(파일명 오름차순)으로 결정론적이다.
 """
 
 from __future__ import annotations
@@ -18,6 +25,7 @@ from pathlib import Path
 from build_docs import REPO_ROOT, load_products
 
 DATE_RE = re.compile(r"^##\s+(\d{4}-\d{2}-\d{2})\s*$")
+FRAGMENT_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})-.+\.md$")
 
 
 def parse_sections(text: str) -> list[tuple[str, list[str]]]:
@@ -38,10 +46,59 @@ def parse_sections(text: str) -> list[tuple[str, list[str]]]:
     return sections
 
 
-def entries_in_range(text: str, start: str, end: str) -> list[tuple[str, list[str]]]:
+def fragment_sections(changelog_d: Path) -> list[tuple[str, list[str]]]:
+    """changelog.d/<YYYY-MM-DD>-<issue>.md 들을 (날짜, bullet 라인들)로 수집."""
+    sections: list[tuple[str, list[str]]] = []
+    for path in sorted(changelog_d.glob("*.md"), key=lambda p: p.name):
+        m = FRAGMENT_RE.match(path.name)
+        if not m:
+            continue
+        bullets = [
+            ln
+            for ln in path.read_text(encoding="utf-8").splitlines()
+            if ln.strip() and not ln.lstrip().startswith("#")
+        ]
+        if bullets:
+            sections.append((m.group(1), bullets))
+    return sections
+
+
+def product_sections(product_dir: Path) -> list[tuple[str, list[str]]]:
+    """제품 디렉터리의 changelog.md 와 changelog.d/ 를 합집합으로 수집.
+
+    같은 날짜는 한 섹션으로 병합하며, 그 안의 순서는 changelog.md 항목 →
+    fragment 항목(파일명 오름차순)이다.
+    """
+    merged: dict[str, list[str]] = {}
+    order: list[str] = []
+
+    def add(day: str, bullets: list[str]) -> None:
+        if day not in merged:
+            merged[day] = []
+            order.append(day)
+        merged[day].extend(bullets)
+
+    cl = product_dir / "changelog.md"
+    if cl.is_file():
+        for day, lines in parse_sections(cl.read_text(encoding="utf-8")):
+            bullets = [ln for ln in lines if ln.strip()]
+            if bullets:
+                add(day, bullets)
+
+    frag_dir = product_dir / "changelog.d"
+    if frag_dir.is_dir():
+        for day, bullets in fragment_sections(frag_dir):
+            add(day, bullets)
+
+    return [(day, merged[day]) for day in order]
+
+
+def sections_in_range(
+    sections: list[tuple[str, list[str]]], start: str, end: str
+) -> list[tuple[str, list[str]]]:
     """범위 내 (날짜, bullet 라인들). ISO 날짜라 문자열 비교로 충분."""
     out = []
-    for d, lines in parse_sections(text):
+    for d, lines in sections:
         if start <= d <= end:
             bullets = [ln for ln in lines if ln.strip()]
             if bullets:
@@ -49,15 +106,17 @@ def entries_in_range(text: str, start: str, end: str) -> list[tuple[str, list[st
     return out
 
 
+def entries_in_range(text: str, start: str, end: str) -> list[tuple[str, list[str]]]:
+    """changelog.md 본문 문자열에 대한 범위 필터(단일 파일 형식 전용 진입점)."""
+    return sections_in_range(parse_sections(text), start, end)
+
+
 def build_report(start: str, end: str, docs_dir: Path, config: Path, title: str) -> str:
     products = load_products(config)
     lines = [f"# {title} — {start} ~ {end}", ""]
     any_hit = False
     for p in products:
-        cl = docs_dir / p.slug / "changelog.md"
-        if not cl.is_file():
-            continue
-        hits = entries_in_range(cl.read_text(encoding="utf-8"), start, end)
+        hits = sections_in_range(product_sections(docs_dir / p.slug), start, end)
         if not hits:
             continue
         any_hit = True
