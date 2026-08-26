@@ -146,6 +146,45 @@ def test_changelog_md_only_product_is_unchanged_by_dual_support():
         )
 
 
+def test_interleaved_dates_are_emitted_newest_first():
+    """두 소스의 날짜가 서로 끼어들어도 보고서 섹션은 날짜 내림차순이다."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        slug = root / "docs" / "a"
+        (slug / "changelog.d").mkdir(parents=True)
+        # changelog.md 는 내림차순, fragment 는 파일명(=날짜) 오름차순으로 읽힌다.
+        (slug / "changelog.md").write_text(
+            "# Changelog\n\n## 2026-07-24\n- 변경: **md 최신**\n"
+            "\n## 2026-07-20\n- 변경: **md 옛것**\n",
+            encoding="utf-8",
+        )
+        (slug / "changelog.d" / "2026-07-22-1471.md").write_text(
+            "- 변경: **fragment 중간**\n", encoding="utf-8"
+        )
+        (slug / "changelog.d" / "2026-07-25-1472.md").write_text(
+            "- 변경: **fragment 최신**\n", encoding="utf-8"
+        )
+        cfg = root / "products.yml"
+        cfg.write_text("products:\n  - {name: A, slug: a, path: a}\n", encoding="utf-8")
+        out = build_report("2026-07-18", "2026-07-25", root / "docs", cfg, "주간")
+        assert [ln for ln in out.splitlines() if ln.startswith("### ")] == [
+            "### 2026-07-25",
+            "### 2026-07-24",
+            "### 2026-07-22",
+            "### 2026-07-20",
+        ], out
+
+
+def test_fragment_dir_skips_directories_matching_the_pattern():
+    """규약 이름을 가진 디렉터리가 있어도 IsADirectoryError 로 죽지 않는다."""
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp) / "changelog.d"
+        d.mkdir()
+        (d / "2026-08-26-1471.md").mkdir()
+        (d / "2026-08-26-1472.md").write_text("- 변경: **정상 항목**\n", encoding="utf-8")
+        assert fragment_sections(d) == [("2026-08-26", ["- 변경: **정상 항목**"])]
+
+
 if __name__ == "__main__":
     test_range_filter()
     test_build_report_skips_empty_products()
@@ -156,4 +195,6 @@ if __name__ == "__main__":
     test_same_date_fragments_sort_by_filename_ascending()
     test_fragment_dir_ignores_non_conforming_filenames_and_empty_files()
     test_changelog_md_only_product_is_unchanged_by_dual_support()
+    test_interleaved_dates_are_emitted_newest_first()
+    test_fragment_dir_skips_directories_matching_the_pattern()
     print("OK")
