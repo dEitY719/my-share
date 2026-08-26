@@ -51,7 +51,7 @@ def fragment_sections(changelog_d: Path) -> list[tuple[str, list[str]]]:
     sections: list[tuple[str, list[str]]] = []
     for path in sorted(changelog_d.glob("*.md"), key=lambda p: p.name):
         m = FRAGMENT_RE.match(path.name)
-        if not m:
+        if not m or not path.is_file():
             continue
         bullets = [
             ln
