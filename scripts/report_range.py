@@ -69,28 +69,22 @@ def product_sections(product_dir: Path) -> list[tuple[str, list[str]]]:
     같은 날짜는 한 섹션으로 병합하며, 그 안의 순서는 changelog.md 항목 →
     fragment 항목(파일명 오름차순)이다.
     """
+    # dict 는 삽입 순서를 보존하므로 별도 순서 리스트가 필요 없다.
     merged: dict[str, list[str]] = {}
-    order: list[str] = []
-
-    def add(day: str, bullets: list[str]) -> None:
-        if day not in merged:
-            merged[day] = []
-            order.append(day)
-        merged[day].extend(bullets)
 
     cl = product_dir / "changelog.md"
     if cl.is_file():
         for day, lines in parse_sections(cl.read_text(encoding="utf-8")):
             bullets = [ln for ln in lines if ln.strip()]
             if bullets:
-                add(day, bullets)
+                merged.setdefault(day, []).extend(bullets)
 
     frag_dir = product_dir / "changelog.d"
     if frag_dir.is_dir():
         for day, bullets in fragment_sections(frag_dir):
-            add(day, bullets)
+            merged.setdefault(day, []).extend(bullets)
 
-    return [(day, merged[day]) for day in order]
+    return list(merged.items())
 
 
 def sections_in_range(
