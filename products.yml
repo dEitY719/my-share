@@ -1,11 +1,13 @@
 # 사외(github.com) 개인 프로젝트 허브 대상 목록.
-# build_docs.py 는 name/slug/path 만 사용. url 은 보고서 링크용 메타.
+# build_docs.py 는 name/slug/path 를, changelog_toggle.py 는 changelog 를 쓴다. url 은 보고서 링크용 메타.
 #   path = 허브 루트 기준 submodule 디렉터리 (repo명과 동일하게 유지)
 #   slug = docs/<slug>/ 수집 폴더명
+#   changelog = changelog.md(기본) | changelog.d — changelog_toggle.py 의 ON 문구 선택
 products:
   - name: dotfiles
     slug: dotfiles
     path: dotfiles
+    changelog: changelog.d
     url: https://github.com/dEitY719/dotfiles
   - name: stock-steward
     slug: stock-steward

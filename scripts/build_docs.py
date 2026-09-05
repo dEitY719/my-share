@@ -25,6 +25,7 @@ class Product:
     name: str
     slug: str
     path: str  # 서브모듈 디렉터리 (repo 루트 기준 상대 경로)
+    changelog: str = "changelog.md"  # changelog.md | changelog.d
 
 
 @dataclass
@@ -41,7 +42,14 @@ def load_products(config_path: Path) -> list[Product]:
         missing = [k for k in ("name", "slug", "path") if k not in entry]
         if missing:
             raise ValueError(f"products.yml 항목에 필수 키 누락 {missing}: {entry}")
-        products.append(Product(name=entry["name"], slug=entry["slug"], path=entry["path"]))
+        products.append(
+            Product(
+                name=entry["name"],
+                slug=entry["slug"],
+                path=entry["path"],
+                changelog=entry.get("changelog", "changelog.md"),
+            )
+        )
     return products
 
 
